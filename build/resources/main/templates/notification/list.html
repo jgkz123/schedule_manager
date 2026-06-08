@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>알림 - 일정 관리 시스템</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div th:replace="~{fragments/header :: navbar}"></div>
+
+<div class="container mt-4">
+    <div th:replace="~{fragments/header :: alerts}"></div>
+
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold mb-0">
+            <i class="bi bi-bell me-2"></i>알림
+            <span th:if="${unreadCount > 0}" class="badge bg-danger ms-2 fs-6"
+                  th:text="${unreadCount}"></span>
+        </h2>
+        <form th:if="${!#lists.isEmpty(notifications)}"
+              th:action="@{/notifications/read-all}" method="post">
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-check-all me-1"></i>모두 읽음 처리
+            </button>
+        </form>
+    </div>
+
+    <!-- 알림 목록 -->
+    <div th:if="${#lists.isEmpty(notifications)}" class="text-center py-5">
+        <i class="bi bi-bell-slash text-muted" style="font-size: 4rem;"></i>
+        <p class="text-muted mt-3 fs-5">알림이 없습니다.</p>
+    </div>
+
+    <div class="card border-0 shadow-sm" th:if="${!#lists.isEmpty(notifications)}">
+        <ul class="list-group list-group-flush">
+            <li th:each="n : ${notifications}"
+                th:class="'list-group-item px-4 py-3 ' + (${!n.read} ? 'bg-primary bg-opacity-5' : '')">
+                <div class="d-flex align-items-start">
+
+                    <!-- 아이콘 -->
+                    <div class="me-3 mt-1">
+                        <i th:if="${n.type.name() == 'OVERDUE'}"
+                           class="bi bi-exclamation-circle fs-5 text-danger"></i>
+                        <i th:if="${n.type.name() == 'DUE_SOON'}"
+                           class="bi bi-alarm fs-5 text-warning"></i>
+                        <i th:if="${n.type.name() == 'REMINDER'}"
+                           class="bi bi-bell fs-5 text-primary"></i>
+                    </div>
+
+                    <!-- 내용 -->
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-1">
+                            <span th:class="'badge me-2 ' + (${n.type.name() == 'OVERDUE'} ? 'bg-danger' : (${n.type.name() == 'DUE_SOON'} ? 'bg-warning text-dark' : 'bg-primary'))"
+                                  th:text="${n.type.label}"></span>
+                            <span th:if="${!n.read}" class="badge bg-primary">새 알림</span>
+                        </div>
+                        <div class="fw-semibold" th:text="${n.message}"></div>
+                        <div class="text-muted small mt-1">
+                            <i class="bi bi-clock me-1"></i>
+                            <span th:text="${#temporals.format(n.notifiedAt, 'yyyy. MM. dd HH:mm')}"></span>
+                        </div>
+                        <!-- 관련 일정 링크 -->
+                        <a th:if="${n.schedule != null}"
+                           th:href="@{/schedules/{id}(id=${n.schedule.id})}"
+                           class="small text-primary mt-1 d-inline-block">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>일정 보기
+                        </a>
+                    </div>
+
+                    <!-- 읽음 처리 버튼 -->
+                    <form th:if="${!n.read}"
+                          th:action="@{/notifications/{id}/read(id=${n.id})}" method="post" class="ms-3">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="읽음 처리">
+                            <i class="bi bi-check2"></i>
+                        </button>
+                    </form>
+                    <span th:if="${n.read}" class="ms-3 text-muted small">
+                        <i class="bi bi-check2-all"></i>
+                    </span>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

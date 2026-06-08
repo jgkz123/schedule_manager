@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.schedule.manager.ScheduleManagerApplicationTests" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-06-06T14:00:14.745Z" hostname="NT551XDA" time="12.319">
+  <properties/>
+  <testcase name="contextLoads()" classname="com.schedule.manager.ScheduleManagerApplicationTests" time="0.625"/>
+  <system-out><![CDATA[23:00:14.962 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.schedule.manager.ScheduleManagerApplicationTests]: ScheduleManagerApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+23:00:15.241 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.schedule.manager.ScheduleManagerApplication for test class com.schedule.manager.ScheduleManagerApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.6)
+
+2026-06-06T23:00:16.129+09:00  INFO 16080 --- [schedule-manager] [    Test worker] c.s.m.ScheduleManagerApplicationTests    : Starting ScheduleManagerApplicationTests using Java 21.0.10 with PID 16080 (started by User in C:\Users\User\IdeaProjects\schedule-manager)
+2026-06-06T23:00:16.131+09:00 DEBUG 16080 --- [schedule-manager] [    Test worker] c.s.m.ScheduleManagerApplicationTests    : Running with Spring Boot v3.5.6, Spring v6.2.11
+2026-06-06T23:00:16.132+09:00  INFO 16080 --- [schedule-manager] [    Test worker] c.s.m.ScheduleManagerApplicationTests    : No active profile set, falling back to 1 default profile: "default"
+2026-06-06T23:00:17.594+09:00  INFO 16080 --- [schedule-manager] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-06T23:00:17.719+09:00  INFO 16080 --- [schedule-manager] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 108 ms. Found 3 JPA repository interfaces.
+2026-06-06T23:00:18.987+09:00  INFO 16080 --- [schedule-manager] [    Test worker] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-06-06T23:00:19.097+09:00  INFO 16080 --- [schedule-manager] [    Test worker] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.29.Final
+2026-06-06T23:00:19.173+09:00  INFO 16080 --- [schedule-manager] [    Test worker] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-06-06T23:00:19.755+09:00  INFO 16080 --- [schedule-manager] [    Test worker] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-06-06T23:00:19.798+09:00  INFO 16080 --- [schedule-manager] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-06T23:00:20.074+09:00  INFO 16080 --- [schedule-manager] [    Test worker] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@3ba5c4dd
+2026-06-06T23:00:20.077+09:00  INFO 16080 --- [schedule-manager] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-06T23:00:20.218+09:00  INFO 16080 --- [schedule-manager] [    Test worker] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.0.46
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-06-06T23:00:21.667+09:00  INFO 16080 --- [schedule-manager] [    Test worker] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+Hibernate: 
+    alter table notifications 
+       drop 
+       foreign key FKg84oogh45iy442wyp7rg3wy3b
+Hibernate: 
+    alter table notifications 
+       drop 
+       foreign key FK9y21adhxn0ayjhfocscqox7bh
+Hibernate: 
+    alter table schedules 
+       drop 
+       foreign key FKd4y4xekwahv9boo6lc8gfl3jv
+Hibernate: 
+    drop table if exists notifications
+Hibernate: 
+    drop table if exists schedules
+Hibernate: 
+    drop table if exists users
+Hibernate: 
+    create table notifications (
+        is_read bit not null,
+        id bigint not null auto_increment,
+        notified_at datetime(6) not null,
+        schedule_id bigint,
+        user_id bigint not null,
+        message varchar(255) not null,
+        type enum ('DUE_SOON','OVERDUE','REMINDER') not null,
+        primary key (id)
+    ) engine=InnoDB
+Hibernate: 
+    create table schedules (
+        due_date date not null,
+        start_date date,
+        created_at datetime(6),
+        id bigint not null auto_increment,
+        updated_at datetime(6),
+        user_id bigint not null,
+        title varchar(200) not null,
+        description TEXT,
+        priority enum ('HIGH','LOW','MEDIUM','URGENT') not null,
+        status enum ('CANCELLED','COMPLETED','IN_PROGRESS','PENDING') not null,
+        primary key (id)
+    ) engine=InnoDB
+Hibernate: 
+    create table users (
+        created_at datetime(6),
+        id bigint not null auto_increment,
+        username varchar(50) not null,
+        email varchar(100) not null,
+        password varchar(255) not null,
+        role enum ('ADMIN','USER') not null,
+        primary key (id)
+    ) engine=InnoDB
+Hibernate: 
+    alter table users 
+       add constraint UKr43af9ap4edm43mmtq01oddj6 unique (username)
+Hibernate: 
+    alter table users 
+       add constraint UK6dotkott2kjsp8vw4d0m25fb7 unique (email)
+Hibernate: 
+    alter table notifications 
+       add constraint FKg84oogh45iy442wyp7rg3wy3b 
+       foreign key (schedule_id) 
+       references schedules (id)
+Hibernate: 
+    alter table notifications 
+       add constraint FK9y21adhxn0ayjhfocscqox7bh 
+       foreign key (user_id) 
+       references users (id)
+Hibernate: 
+    alter table schedules 
+       add constraint FKd4y4xekwahv9boo6lc8gfl3jv 
+       foreign key (user_id) 
+       references users (id)
+2026-06-06T23:00:22.273+09:00  INFO 16080 --- [schedule-manager] [    Test worker] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-06T23:00:22.855+09:00  INFO 16080 --- [schedule-manager] [    Test worker] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-06-06T23:00:24.571+09:00  INFO 16080 --- [schedule-manager] [    Test worker] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page template: index
+2026-06-06T23:00:24.994+09:00  INFO 16080 --- [schedule-manager] [    Test worker] eAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-06-06T23:00:24.996+09:00  WARN 16080 --- [schedule-manager] [    Test worker] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-06-06T23:00:25.867+09:00  INFO 16080 --- [schedule-manager] [    Test worker] c.s.m.ScheduleManagerApplicationTests    : Started ScheduleManagerApplicationTests in 10.267 seconds (process running for 12.413)
+Hibernate: 
+    select
+        u1_0.id 
+    from
+        users u1_0 
+    where
+        u1_0.username=? 
+    limit
+        ?
+Hibernate: 
+    insert 
+    into
+        users
+        (created_at, email, password, role, username) 
+    values
+        (?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        schedules
+        (created_at, description, due_date, priority, start_date, status, title, updated_at, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        schedules
+        (created_at, description, due_date, priority, start_date, status, title, updated_at, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        schedules
+        (created_at, description, due_date, priority, start_date, status, title, updated_at, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        schedules
+        (created_at, description, due_date, priority, start_date, status, title, updated_at, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        schedules
+        (created_at, description, due_date, priority, start_date, status, title, updated_at, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        schedules
+        (created_at, description, due_date, priority, start_date, status, title, updated_at, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        schedules
+        (created_at, description, due_date, priority, start_date, status, title, updated_at, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        schedules
+        (created_at, description, due_date, priority, start_date, status, title, updated_at, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        notifications
+        (message, notified_at, is_read, schedule_id, type, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?)
+Hibernate: 
+    select
+        s1_0.id,
+        s1_0.created_at,
+        s1_0.description,
+        s1_0.due_date,
+        s1_0.priority,
+        s1_0.start_date,
+        s1_0.status,
+        s1_0.title,
+        s1_0.updated_at,
+        s1_0.user_id 
+    from
+        schedules s1_0 
+    where
+        s1_0.user_id=? 
+    order by
+        s1_0.due_date
+Hibernate: 
+    insert 
+    into
+        notifications
+        (message, notified_at, is_read, schedule_id, type, user_id) 
+    values
+        (?, ?, ?, ?, ?, ?)
+2026-06-06T23:00:26.401+09:00  INFO 16080 --- [schedule-manager] [    Test worker] c.s.manager.config.DataInitializer       : 샘플 데이터 초기화 완료 - 데모 계정: demo / demo1234
+]]></system-out>
+  <system-err><![CDATA[Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+WARNING: A Java agent has been loaded dynamically (C:\Users\User\.gradle\caches\modules-2\files-2.1\net.bytebuddy\byte-buddy-agent\1.17.7\fbf3d6d649ed37fc9e9c59480a05be0a26e3c2da\byte-buddy-agent-1.17.7.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+]]></system-err>
+</testsuite>

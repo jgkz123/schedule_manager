@@ -1,0 +1,2415 @@
+================================================================
+FILE: src/main/java/com/schedule/manager/ScheduleManagerApplication.java
+================================================================
+package com.schedule.manager;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableJpaAuditing
+@EnableScheduling
+public class ScheduleManagerApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ScheduleManagerApplication.class, args);
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/config/DataInitializer.java
+================================================================
+package com.schedule.manager.config;
+
+import com.schedule.manager.domain.*;
+import com.schedule.manager.repository.NotificationRepository;
+import com.schedule.manager.repository.ScheduleRepository;
+import com.schedule.manager.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class DataInitializer implements ApplicationRunner {
+
+    private final UserRepository userRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final NotificationRepository notificationRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
+
+    @Override
+    @Transactional
+    public void run(ApplicationArguments args) {
+        if (userRepository.existsByUsername("demo")) {
+            return;
+        }
+
+        // 데모 계정 생성
+        User user = new User();
+        user.setUsername("demo");
+        user.setEmail("demo@example.com");
+        user.setPassword(passwordEncoder.encode("demo1234"));
+        user.setRole(Role.USER);
+        userRepository.save(user);
+
+        // 샘플 일정 생성
+        createSchedule(user, "기말 프로젝트 제출", "Spring Boot 일정 관리 시스템 구현 및 보고서 작성",
+                LocalDate.now().minusDays(3), LocalDate.now().plusDays(7), Priority.URGENT, ScheduleStatus.IN_PROGRESS);
+
+        createSchedule(user, "알고리즘 과제", "동적 프로그래밍 문제 풀이 5문제",
+                LocalDate.now(), LocalDate.now().plusDays(2), Priority.HIGH, ScheduleStatus.PENDING);
+
+        createSchedule(user, "데이터베이스 시험 준비", "SQL, 정규화, 인덱스 개념 복습",
+                LocalDate.now(), LocalDate.now().plusDays(1), Priority.HIGH, ScheduleStatus.PENDING);
+
+        createSchedule(user, "독서 클럽 모임 준비", "이번 달 도서 요약 및 토론 주제 준비",
+                LocalDate.now().minusDays(2), LocalDate.now().plusDays(5), Priority.MEDIUM, ScheduleStatus.PENDING);
+
+        createSchedule(user, "운동 루틴 정착", "주 3회 헬스장 방문 목표",
+                LocalDate.now().minusDays(7), LocalDate.now().plusDays(14), Priority.LOW, ScheduleStatus.IN_PROGRESS);
+
+        Schedule overdueSchedule = createSchedule(user, "영어 에세이 제출", "토플 준비 영어 에세이 작성",
+                LocalDate.now().minusDays(10), LocalDate.now().minusDays(2), Priority.HIGH, ScheduleStatus.PENDING);
+
+        createSchedule(user, "팀 프레젠테이션 준비", "캡스톤 디자인 중간 발표 자료 제작",
+                LocalDate.now(), LocalDate.now().plusDays(10), Priority.MEDIUM, ScheduleStatus.PENDING);
+
+        Schedule completedSchedule = createSchedule(user, "기말 보고서 초안 작성", "서론 및 관련 연구 섹션 완성",
+                LocalDate.now().minusDays(14), LocalDate.now().minusDays(3), Priority.HIGH, ScheduleStatus.COMPLETED);
+
+        // 샘플 알림 생성
+        Notification n1 = new Notification();
+        n1.setUser(user);
+        n1.setSchedule(overdueSchedule);
+        n1.setMessage("'영어 에세이 제출' 일정이 마감일을 초과했습니다. 확인이 필요합니다.");
+        n1.setType(NotificationType.OVERDUE);
+        n1.setRead(false);
+        n1.setNotifiedAt(LocalDateTime.now().minusHours(2));
+        notificationRepository.save(n1);
+
+        Notification n2 = new Notification();
+        n2.setUser(user);
+        n2.setSchedule(scheduleRepository.findByUserOrderByDueDateAsc(user).get(1));
+        n2.setMessage("'알고리즘 과제' 일정이 2일 후 마감됩니다.");
+        n2.setType(NotificationType.DUE_SOON);
+        n2.setRead(false);
+        n2.setNotifiedAt(LocalDateTime.now().minusHours(1));
+        notificationRepository.save(n2);
+
+        log.info("샘플 데이터 초기화 완료 - 데모 계정: demo / demo1234");
+    }
+
+    private Schedule createSchedule(User user, String title, String description,
+                                     LocalDate startDate, LocalDate dueDate,
+                                     Priority priority, ScheduleStatus status) {
+        Schedule schedule = new Schedule();
+        schedule.setUser(user);
+        schedule.setTitle(title);
+        schedule.setDescription(description);
+        schedule.setStartDate(startDate);
+        schedule.setDueDate(dueDate);
+        schedule.setPriority(priority);
+        schedule.setStatus(status);
+        return scheduleRepository.save(schedule);
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/config/GlobalControllerAdvice.java
+================================================================
+package com.schedule.manager.config;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ModelAttribute;
+
+@ControllerAdvice
+public class GlobalControllerAdvice {
+
+    @ModelAttribute
+    public void addRequestURI(HttpServletRequest request, Model model) {
+        model.addAttribute("requestURI", request.getRequestURI());
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/config/SecurityConfig.java
+================================================================
+package com.schedule.manager.config;
+
+import com.schedule.manager.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Autowired
+    @Lazy
+    private UserService userService;
+
+    @Bean
+    public BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .authenticationProvider(authenticationProvider())
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/auth/**", "/css/**", "/js/**", "/h2-console/**").permitAll()
+                .anyRequest().authenticated()
+            )
+            .formLogin(form -> form
+                .loginPage("/auth/login")
+                .loginProcessingUrl("/auth/login")
+                .defaultSuccessUrl("/", true)
+                .failureUrl("/auth/login?error")
+                .permitAll()
+            )
+            .logout(logout -> logout
+                .logoutUrl("/auth/logout")
+                .logoutSuccessUrl("/auth/login?logout")
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID")
+                .permitAll()
+            )
+            // H2 콘솔 사용을 위한 설정
+            .csrf(csrf -> csrf
+                .ignoringRequestMatchers("/h2-console/**")
+            )
+            .headers(headers -> headers
+                .frameOptions(frame -> frame.sameOrigin())
+            );
+
+        return http.build();
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/controller/AuthController.java
+================================================================
+package com.schedule.manager.controller;
+
+import com.schedule.manager.dto.UserRegistrationDto;
+import com.schedule.manager.service.UserService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+@Controller
+@RequestMapping("/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+    private final UserService userService;
+
+    @GetMapping("/login")
+    public String loginPage() {
+        return "auth/login";
+    }
+
+    @GetMapping("/register")
+    public String registerPage(Model model) {
+        model.addAttribute("userDto", new UserRegistrationDto());
+        return "auth/register";
+    }
+
+    @PostMapping("/register")
+    public String register(
+            @Valid @ModelAttribute("userDto") UserRegistrationDto dto,
+            BindingResult result,
+            RedirectAttributes redirectAttributes) {
+
+        if (result.hasErrors()) {
+            return "auth/register";
+        }
+
+        if (!dto.getPassword().equals(dto.getPasswordConfirm())) {
+            result.rejectValue("passwordConfirm", "error.mismatch", "비밀번호가 일치하지 않습니다.");
+            return "auth/register";
+        }
+
+        try {
+            userService.register(dto);
+            redirectAttributes.addFlashAttribute("successMessage", "회원가입이 완료되었습니다. 로그인해주세요.");
+            return "redirect:/auth/login";
+        } catch (IllegalArgumentException e) {
+            result.reject("error.register", e.getMessage());
+            return "auth/register";
+        }
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/controller/MainController.java
+================================================================
+package com.schedule.manager.controller;
+
+import com.schedule.manager.domain.ScheduleStatus;
+import com.schedule.manager.service.NotificationService;
+import com.schedule.manager.service.ScheduleService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+
+@Controller
+@RequiredArgsConstructor
+public class MainController {
+
+    private final ScheduleService scheduleService;
+    private final NotificationService notificationService;
+
+    @GetMapping("/")
+    public String dashboard(@AuthenticationPrincipal UserDetails userDetails, Model model) {
+        String username = userDetails.getUsername();
+
+        model.addAttribute("upcomingSchedules", scheduleService.findUpcomingSchedules(username));
+        model.addAttribute("overdueSchedules", scheduleService.findOverdueSchedules(username));
+        model.addAttribute("unreadNotifications", notificationService.findUnreadByUser(username));
+        model.addAttribute("unreadCount", notificationService.countUnread(username));
+        model.addAttribute("pendingCount", scheduleService.countByStatus(username, ScheduleStatus.PENDING));
+        model.addAttribute("inProgressCount", scheduleService.countByStatus(username, ScheduleStatus.IN_PROGRESS));
+        model.addAttribute("completedCount", scheduleService.countByStatus(username, ScheduleStatus.COMPLETED));
+        model.addAttribute("username", username);
+
+        return "index";
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/controller/NotificationController.java
+================================================================
+package com.schedule.manager.controller;
+
+import com.schedule.manager.service.NotificationService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+@Controller
+@RequestMapping("/notifications")
+@RequiredArgsConstructor
+public class NotificationController {
+
+    private final NotificationService notificationService;
+
+    @GetMapping
+    public String list(@AuthenticationPrincipal UserDetails userDetails, Model model) {
+        String username = userDetails.getUsername();
+        model.addAttribute("notifications", notificationService.findAllByUser(username));
+        model.addAttribute("unreadCount", notificationService.countUnread(username));
+        return "notification/list";
+    }
+
+    @PostMapping("/{id}/read")
+    public String markAsRead(
+            @PathVariable Long id,
+            @RequestHeader(value = "Referer", defaultValue = "/notifications") String referer) {
+        notificationService.markAsRead(id);
+        return "redirect:" + referer;
+    }
+
+    @PostMapping("/read-all")
+    public String markAllAsRead(@AuthenticationPrincipal UserDetails userDetails) {
+        notificationService.markAllAsRead(userDetails.getUsername());
+        return "redirect:/notifications";
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/controller/ScheduleController.java
+================================================================
+package com.schedule.manager.controller;
+
+import com.schedule.manager.domain.Priority;
+import com.schedule.manager.domain.Schedule;
+import com.schedule.manager.domain.ScheduleStatus;
+import com.schedule.manager.dto.ScheduleDto;
+import com.schedule.manager.service.NotificationService;
+import com.schedule.manager.service.ScheduleService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.List;
+
+@Controller
+@RequestMapping("/schedules")
+@RequiredArgsConstructor
+public class ScheduleController {
+
+    private final ScheduleService scheduleService;
+    private final NotificationService notificationService;
+
+    @GetMapping
+    public String list(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            @AuthenticationPrincipal UserDetails userDetails,
+            Model model) {
+
+        String username = userDetails.getUsername();
+        List<Schedule> schedules;
+
+        if (keyword != null && !keyword.isBlank()) {
+            schedules = scheduleService.searchByTitle(username, keyword);
+            model.addAttribute("keyword", keyword);
+        } else if (status != null && !status.isBlank()) {
+            schedules = scheduleService.findByUserAndStatus(username, ScheduleStatus.valueOf(status));
+            model.addAttribute("selectedStatus", status);
+        } else {
+            schedules = scheduleService.findAllByUser(username);
+        }
+
+        model.addAttribute("schedules", schedules);
+        model.addAttribute("statuses", ScheduleStatus.values());
+        model.addAttribute("unreadCount", notificationService.countUnread(username));
+        return "schedule/list";
+    }
+
+    @GetMapping("/new")
+    public String newForm(@AuthenticationPrincipal UserDetails userDetails, Model model) {
+        model.addAttribute("scheduleDto", new ScheduleDto());
+        model.addAttribute("priorities", Priority.values());
+        model.addAttribute("unreadCount", notificationService.countUnread(userDetails.getUsername()));
+        model.addAttribute("isEdit", false);
+        return "schedule/form";
+    }
+
+    @PostMapping("/new")
+    public String create(
+            @Valid @ModelAttribute("scheduleDto") ScheduleDto dto,
+            BindingResult result,
+            @AuthenticationPrincipal UserDetails userDetails,
+            Model model,
+            RedirectAttributes redirectAttributes) {
+
+        if (result.hasErrors()) {
+            model.addAttribute("priorities", Priority.values());
+            model.addAttribute("isEdit", false);
+            return "schedule/form";
+        }
+
+        scheduleService.create(dto, userDetails.getUsername());
+        redirectAttributes.addFlashAttribute("successMessage", "일정이 등록되었습니다.");
+        return "redirect:/schedules";
+    }
+
+    @GetMapping("/{id}")
+    public String detail(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails,
+            Model model) {
+
+        String username = userDetails.getUsername();
+        model.addAttribute("schedule", scheduleService.findById(id, username));
+        model.addAttribute("unreadCount", notificationService.countUnread(username));
+        return "schedule/detail";
+    }
+
+    @GetMapping("/{id}/edit")
+    public String editForm(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails,
+            Model model) {
+
+        String username = userDetails.getUsername();
+        Schedule schedule = scheduleService.findById(id, username);
+
+        model.addAttribute("scheduleDto", ScheduleDto.from(schedule));
+        model.addAttribute("priorities", Priority.values());
+        model.addAttribute("statuses", ScheduleStatus.values());
+        model.addAttribute("scheduleId", id);
+        model.addAttribute("unreadCount", notificationService.countUnread(username));
+        model.addAttribute("isEdit", true);
+        return "schedule/form";
+    }
+
+    @PostMapping("/{id}/edit")
+    public String update(
+            @PathVariable Long id,
+            @Valid @ModelAttribute("scheduleDto") ScheduleDto dto,
+            BindingResult result,
+            @AuthenticationPrincipal UserDetails userDetails,
+            Model model,
+            RedirectAttributes redirectAttributes) {
+
+        if (result.hasErrors()) {
+            model.addAttribute("priorities", Priority.values());
+            model.addAttribute("statuses", ScheduleStatus.values());
+            model.addAttribute("scheduleId", id);
+            model.addAttribute("isEdit", true);
+            return "schedule/form";
+        }
+
+        scheduleService.update(id, dto, userDetails.getUsername());
+        redirectAttributes.addFlashAttribute("successMessage", "일정이 수정되었습니다.");
+        return "redirect:/schedules/" + id;
+    }
+
+    @PostMapping("/{id}/delete")
+    public String delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails,
+            RedirectAttributes redirectAttributes) {
+
+        scheduleService.delete(id, userDetails.getUsername());
+        redirectAttributes.addFlashAttribute("successMessage", "일정이 삭제되었습니다.");
+        return "redirect:/schedules";
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/domain/Notification.java
+================================================================
+package com.schedule.manager.domain;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "notifications")
+@Getter @Setter
+@NoArgsConstructor
+public class Notification {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "schedule_id")
+    private Schedule schedule;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(nullable = false)
+    private String message;
+
+    @Column(name = "is_read", nullable = false)
+    private boolean read = false;
+
+    @Column(name = "notified_at", nullable = false)
+    private LocalDateTime notifiedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private NotificationType type;
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/domain/NotificationType.java
+================================================================
+package com.schedule.manager.domain;
+
+public enum NotificationType {
+    DUE_SOON("마감 임박"),
+    OVERDUE("마감 초과"),
+    REMINDER("리마인더");
+
+    private final String label;
+
+    NotificationType(String label) {
+        this.label = label;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/domain/Priority.java
+================================================================
+package com.schedule.manager.domain;
+
+public enum Priority {
+    LOW("낮음"),
+    MEDIUM("보통"),
+    HIGH("높음"),
+    URGENT("긴급");
+
+    private final String label;
+
+    Priority(String label) {
+        this.label = label;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/domain/Role.java
+================================================================
+package com.schedule.manager.domain;
+
+public enum Role {
+    USER("일반 사용자"),
+    ADMIN("관리자");
+
+    private final String description;
+
+    Role(String description) {
+        this.description = description;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/domain/Schedule.java
+================================================================
+package com.schedule.manager.domain;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "schedules")
+@Getter @Setter
+@NoArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
+public class Schedule {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 200)
+    private String title;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "due_date", nullable = false)
+    private LocalDate dueDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Priority priority = Priority.MEDIUM;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ScheduleStatus status = ScheduleStatus.PENDING;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Notification> notifications = new ArrayList<>();
+
+    public boolean isOverdue() {
+        return dueDate.isBefore(LocalDate.now()) && status == ScheduleStatus.PENDING;
+    }
+
+    public boolean isDueSoon() {
+        LocalDate today = LocalDate.now();
+        return !dueDate.isBefore(today) && dueDate.isBefore(today.plusDays(4))
+                && status == ScheduleStatus.PENDING;
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/domain/ScheduleStatus.java
+================================================================
+package com.schedule.manager.domain;
+
+public enum ScheduleStatus {
+    PENDING("대기중"),
+    IN_PROGRESS("진행중"),
+    COMPLETED("완료"),
+    CANCELLED("취소");
+
+    private final String label;
+
+    ScheduleStatus(String label) {
+        this.label = label;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/domain/User.java
+================================================================
+package com.schedule.manager.domain;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "users")
+@Getter @Setter
+@NoArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 50)
+    private String username;
+
+    @Column(nullable = false, unique = true, length = 100)
+    private String email;
+
+    @Column(nullable = false)
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role = Role.USER;
+
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Schedule> schedules = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Notification> notifications = new ArrayList<>();
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/dto/ScheduleDto.java
+================================================================
+package com.schedule.manager.dto;
+
+import com.schedule.manager.domain.Priority;
+import com.schedule.manager.domain.Schedule;
+import com.schedule.manager.domain.ScheduleStatus;
+import jakarta.validation.constraints.FutureOrPresent;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDate;
+
+@Getter @Setter
+public class ScheduleDto {
+
+    @NotBlank(message = "제목을 입력해주세요.")
+    @Size(max = 200, message = "제목은 200자 이내로 입력해주세요.")
+    private String title;
+
+    @Size(max = 2000, message = "내용은 2000자 이내로 입력해주세요.")
+    private String description;
+
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    private LocalDate startDate;
+
+    @NotNull(message = "마감일을 입력해주세요.")
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    private LocalDate dueDate;
+
+    @NotNull(message = "우선순위를 선택해주세요.")
+    private Priority priority = Priority.MEDIUM;
+
+    private ScheduleStatus status = ScheduleStatus.PENDING;
+
+    public static ScheduleDto from(Schedule schedule) {
+        ScheduleDto dto = new ScheduleDto();
+        dto.setTitle(schedule.getTitle());
+        dto.setDescription(schedule.getDescription());
+        dto.setStartDate(schedule.getStartDate());
+        dto.setDueDate(schedule.getDueDate());
+        dto.setPriority(schedule.getPriority());
+        dto.setStatus(schedule.getStatus());
+        return dto;
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/dto/UserRegistrationDto.java
+================================================================
+package com.schedule.manager.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter @Setter
+public class UserRegistrationDto {
+
+    @NotBlank(message = "아이디를 입력해주세요.")
+    @Size(min = 4, max = 20, message = "아이디는 4~20자 사이여야 합니다.")
+    private String username;
+
+    @NotBlank(message = "이메일을 입력해주세요.")
+    @Email(message = "올바른 이메일 형식이 아닙니다.")
+    private String email;
+
+    @NotBlank(message = "비밀번호를 입력해주세요.")
+    @Size(min = 6, max = 50, message = "비밀번호는 6자 이상이어야 합니다.")
+    private String password;
+
+    @NotBlank(message = "비밀번호 확인을 입력해주세요.")
+    private String passwordConfirm;
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/repository/NotificationRepository.java
+================================================================
+package com.schedule.manager.repository;
+
+import com.schedule.manager.domain.Notification;
+import com.schedule.manager.domain.NotificationType;
+import com.schedule.manager.domain.Schedule;
+import com.schedule.manager.domain.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+public interface NotificationRepository extends JpaRepository<Notification, Long> {
+
+    List<Notification> findByUserAndReadFalseOrderByNotifiedAtDesc(User user);
+
+    List<Notification> findByUserOrderByNotifiedAtDesc(User user);
+
+    long countByUserAndReadFalse(User user);
+
+    boolean existsByScheduleAndTypeAndNotifiedAtAfter(
+            Schedule schedule, NotificationType type, LocalDateTime dateTime);
+
+    @Modifying
+    @Query("UPDATE Notification n SET n.read = true WHERE n.user = :user")
+    void markAllAsReadByUser(@Param("user") User user);
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/repository/ScheduleRepository.java
+================================================================
+package com.schedule.manager.repository;
+
+import com.schedule.manager.domain.Schedule;
+import com.schedule.manager.domain.ScheduleStatus;
+import com.schedule.manager.domain.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
+
+    List<Schedule> findByUserOrderByDueDateAsc(User user);
+
+    List<Schedule> findByUserAndStatusOrderByDueDateAsc(User user, ScheduleStatus status);
+
+    List<Schedule> findByUserAndDueDateBetweenAndStatusOrderByDueDateAsc(
+            User user, LocalDate start, LocalDate end, ScheduleStatus status);
+
+    List<Schedule> findByUserAndDueDateBeforeAndStatus(
+            User user, LocalDate date, ScheduleStatus status);
+
+    List<Schedule> findByDueDateBetweenAndStatus(
+            LocalDate start, LocalDate end, ScheduleStatus status);
+
+    List<Schedule> findByDueDateBeforeAndStatus(LocalDate date, ScheduleStatus status);
+
+    @Query("SELECT COUNT(s) FROM Schedule s WHERE s.user = :user AND s.status = :status")
+    long countByUserAndStatus(@Param("user") User user, @Param("status") ScheduleStatus status);
+
+    @Query("SELECT s FROM Schedule s WHERE s.user = :user AND " +
+           "LOWER(s.title) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    List<Schedule> searchByTitle(@Param("user") User user, @Param("keyword") String keyword);
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/repository/UserRepository.java
+================================================================
+package com.schedule.manager.repository;
+
+import com.schedule.manager.domain.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByUsername(String username);
+    boolean existsByUsername(String username);
+    boolean existsByEmail(String email);
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/service/NotificationService.java
+================================================================
+package com.schedule.manager.service;
+
+import com.schedule.manager.domain.*;
+import com.schedule.manager.repository.NotificationRepository;
+import com.schedule.manager.repository.ScheduleRepository;
+import com.schedule.manager.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class NotificationService {
+
+    private final NotificationRepository notificationRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final UserRepository userRepository;
+
+    public List<Notification> findAllByUser(String username) {
+        User user = getUser(username);
+        return notificationRepository.findByUserOrderByNotifiedAtDesc(user);
+    }
+
+    public List<Notification> findUnreadByUser(String username) {
+        User user = getUser(username);
+        return notificationRepository.findByUserAndReadFalseOrderByNotifiedAtDesc(user);
+    }
+
+    public long countUnread(String username) {
+        User user = getUser(username);
+        return notificationRepository.countByUserAndReadFalse(user);
+    }
+
+    @Transactional
+    public void markAsRead(Long id) {
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("알림을 찾을 수 없습니다."));
+        notification.setRead(true);
+    }
+
+    @Transactional
+    public void markAllAsRead(String username) {
+        User user = getUser(username);
+        notificationRepository.markAllAsReadByUser(user);
+    }
+
+    // 매일 오전 8시에 실행
+    @Scheduled(cron = "0 0 8 * * *")
+    @Transactional
+    public void checkAndCreateNotifications() {
+        log.info("일정 알림 검사 시작: {}", LocalDateTime.now());
+
+        LocalDate today = LocalDate.now();
+        LocalDate threeDaysLater = today.plusDays(3);
+
+        // 3일 이내 마감 예정 일정 알림
+        List<Schedule> upcomingSchedules = scheduleRepository
+                .findByDueDateBetweenAndStatus(today, threeDaysLater, ScheduleStatus.PENDING);
+
+        for (Schedule schedule : upcomingSchedules) {
+            boolean alreadyNotified = notificationRepository.existsByScheduleAndTypeAndNotifiedAtAfter(
+                    schedule, NotificationType.DUE_SOON, LocalDateTime.now().minusDays(1));
+
+            if (!alreadyNotified) {
+                long daysLeft = ChronoUnit.DAYS.between(today, schedule.getDueDate());
+                String message = daysLeft == 0
+                        ? String.format("'%s' 일정이 오늘 마감됩니다!", schedule.getTitle())
+                        : String.format("'%s' 일정이 %d일 후 마감됩니다.", schedule.getTitle(), daysLeft);
+                createNotification(schedule, NotificationType.DUE_SOON, message);
+            }
+        }
+
+        // 마감 초과 일정 알림
+        List<Schedule> overdueSchedules = scheduleRepository
+                .findByDueDateBeforeAndStatus(today, ScheduleStatus.PENDING);
+
+        for (Schedule schedule : overdueSchedules) {
+            boolean alreadyNotified = notificationRepository.existsByScheduleAndTypeAndNotifiedAtAfter(
+                    schedule, NotificationType.OVERDUE, LocalDateTime.now().minusDays(1));
+
+            if (!alreadyNotified) {
+                createNotification(schedule, NotificationType.OVERDUE,
+                        String.format("'%s' 일정이 마감일을 초과했습니다. 확인이 필요합니다.", schedule.getTitle()));
+            }
+        }
+
+        log.info("일정 알림 검사 완료");
+    }
+
+    @Transactional
+    public void createNotification(Schedule schedule, NotificationType type, String message) {
+        Notification notification = new Notification();
+        notification.setSchedule(schedule);
+        notification.setUser(schedule.getUser());
+        notification.setMessage(message);
+        notification.setType(type);
+        notification.setRead(false);
+        notification.setNotifiedAt(LocalDateTime.now());
+        notificationRepository.save(notification);
+    }
+
+    private User getUser(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/service/ScheduleService.java
+================================================================
+package com.schedule.manager.service;
+
+import com.schedule.manager.domain.Schedule;
+import com.schedule.manager.domain.ScheduleStatus;
+import com.schedule.manager.domain.User;
+import com.schedule.manager.dto.ScheduleDto;
+import com.schedule.manager.repository.ScheduleRepository;
+import com.schedule.manager.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class ScheduleService {
+
+    private final ScheduleRepository scheduleRepository;
+    private final UserRepository userRepository;
+
+    public List<Schedule> findAllByUser(String username) {
+        User user = getUser(username);
+        return scheduleRepository.findByUserOrderByDueDateAsc(user);
+    }
+
+    public List<Schedule> findByUserAndStatus(String username, ScheduleStatus status) {
+        User user = getUser(username);
+        return scheduleRepository.findByUserAndStatusOrderByDueDateAsc(user, status);
+    }
+
+    public List<Schedule> searchByTitle(String username, String keyword) {
+        User user = getUser(username);
+        return scheduleRepository.searchByTitle(user, keyword);
+    }
+
+    public Schedule findById(Long id, String username) {
+        Schedule schedule = scheduleRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("일정을 찾을 수 없습니다."));
+        if (!schedule.getUser().getUsername().equals(username)) {
+            throw new AccessDeniedException("접근 권한이 없습니다.");
+        }
+        return schedule;
+    }
+
+    @Transactional
+    public void create(ScheduleDto dto, String username) {
+        User user = getUser(username);
+
+        Schedule schedule = new Schedule();
+        schedule.setTitle(dto.getTitle());
+        schedule.setDescription(dto.getDescription());
+        schedule.setStartDate(dto.getStartDate());
+        schedule.setDueDate(dto.getDueDate());
+        schedule.setPriority(dto.getPriority());
+        schedule.setStatus(ScheduleStatus.PENDING);
+        schedule.setUser(user);
+
+        scheduleRepository.save(schedule);
+    }
+
+    @Transactional
+    public void update(Long id, ScheduleDto dto, String username) {
+        Schedule schedule = findById(id, username);
+        schedule.setTitle(dto.getTitle());
+        schedule.setDescription(dto.getDescription());
+        schedule.setStartDate(dto.getStartDate());
+        schedule.setDueDate(dto.getDueDate());
+        schedule.setPriority(dto.getPriority());
+        schedule.setStatus(dto.getStatus());
+    }
+
+    @Transactional
+    public void delete(Long id, String username) {
+        Schedule schedule = findById(id, username);
+        scheduleRepository.delete(schedule);
+    }
+
+    public List<Schedule> findUpcomingSchedules(String username) {
+        User user = getUser(username);
+        LocalDate today = LocalDate.now();
+        return scheduleRepository.findByUserAndDueDateBetweenAndStatusOrderByDueDateAsc(
+                user, today, today.plusDays(3), ScheduleStatus.PENDING);
+    }
+
+    public List<Schedule> findOverdueSchedules(String username) {
+        User user = getUser(username);
+        return scheduleRepository.findByUserAndDueDateBeforeAndStatus(
+                user, LocalDate.now(), ScheduleStatus.PENDING);
+    }
+
+    public long countByStatus(String username, ScheduleStatus status) {
+        User user = getUser(username);
+        return scheduleRepository.countByUserAndStatus(user, status);
+    }
+
+    private User getUser(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
+    }
+}
+
+
+================================================================
+FILE: src/main/java/com/schedule/manager/service/UserService.java
+================================================================
+package com.schedule.manager.service;
+
+import com.schedule.manager.domain.Role;
+import com.schedule.manager.domain.User;
+import com.schedule.manager.dto.UserRegistrationDto;
+import com.schedule.manager.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class UserService implements UserDetailsService {
+
+    private final UserRepository userRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username));
+
+        return org.springframework.security.core.userdetails.User.builder()
+                .username(user.getUsername())
+                .password(user.getPassword())
+                .roles(user.getRole().name())
+                .build();
+    }
+
+    @Transactional
+    public void register(UserRegistrationDto dto) {
+        if (userRepository.existsByUsername(dto.getUsername())) {
+            throw new IllegalArgumentException("이미 사용 중인 아이디입니다.");
+        }
+        if (userRepository.existsByEmail(dto.getEmail())) {
+            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+        }
+
+        User user = new User();
+        user.setUsername(dto.getUsername());
+        user.setEmail(dto.getEmail());
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setRole(Role.USER);
+        userRepository.save(user);
+    }
+
+    public User findByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
+    }
+}
+
+
+================================================================
+FILE: src/main/resources/application.properties
+================================================================
+# Application
+spring.application.name=schedule-manager
+server.port=8080
+
+# ==============================
+# MySQL
+# ==============================
+spring.datasource.url=jdbc:mysql://localhost:3306/schedule_db?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&createDatabaseIfNotExist=true
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.datasource.username=root
+spring.datasource.password=1234
+
+# JPA
+spring.jpa.hibernate.ddl-auto=create-drop
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.open-in-view=false
+
+# Thymeleaf
+spring.thymeleaf.cache=false
+spring.thymeleaf.encoding=UTF-8
+
+# Logging
+logging.level.com.schedule.manager=DEBUG
+
+
+================================================================
+FILE: src/main/resources/static/css/style.css
+================================================================
+/* ========== 전역 스타일 ========== */
+body {
+    font-family: 'Segoe UI', 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    padding-bottom: 40px;
+}
+
+/* ========== 우선순위 배지 ========== */
+.priority-low    { background-color: #6c757d; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.priority-medium { background-color: #0d6efd; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.priority-high   { background-color: #fd7e14; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.priority-urgent { background-color: #dc3545; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+
+/* ========== 상태 배지 ========== */
+.status-pending     { background-color: #ffc107; color: #212529; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.status-in_progress { background-color: #0d6efd; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.status-completed   { background-color: #198754; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.status-cancelled   { background-color: #6c757d; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+
+/* ========== 카드 ========== */
+.card {
+    border-radius: 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.schedule-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1) !important;
+}
+
+.border-transparent {
+    border-color: transparent !important;
+}
+
+/* ========== 텍스트 줄임 (2줄) ========== */
+.text-truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ========== 네비게이션 ========== */
+.navbar .nav-link {
+    border-radius: 6px;
+    padding: 6px 12px;
+    transition: background-color 0.15s;
+}
+
+.navbar .nav-link:hover,
+.navbar .nav-link.active {
+    background-color: rgba(255,255,255,0.15);
+}
+
+/* ========== 알림 배지 ========== */
+.navbar .badge {
+    font-size: 0.6rem;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ========== 폼 ========== */
+.form-control:focus,
+.form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+/* ========== 로그인/회원가입 카드 ========== */
+.card.shadow {
+    border-radius: 16px;
+}
+
+/* ========== 대시보드 통계 카드 ========== */
+.rounded-circle {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ========== 알림 목록 ========== */
+.list-group-item {
+    transition: background-color 0.15s;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+
+================================================================
+FILE: src/main/resources/templates/auth/login.html
+================================================================
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인 - 일정 관리 시스템</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div class="min-vh-100 d-flex align-items-center justify-content-center">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-5 col-lg-4">
+
+                <!-- 로고 -->
+                <div class="text-center mb-4">
+                    <i class="bi bi-calendar-check text-primary" style="font-size: 3rem;"></i>
+                    <h3 class="fw-bold mt-2 text-primary">일정 관리 시스템</h3>
+                    <p class="text-muted">효율적인 일정 관리를 시작하세요</p>
+                </div>
+
+                <!-- 로그인 카드 -->
+                <div class="card border-0 shadow">
+                    <div class="card-body p-4">
+                        <h5 class="card-title fw-bold mb-4 text-center">로그인</h5>
+
+                        <!-- 성공 메시지 -->
+                        <div th:if="${successMessage}" class="alert alert-success small" th:text="${successMessage}"></div>
+
+                        <!-- 에러 메시지 -->
+                        <div th:if="${param.error}" class="alert alert-danger small">
+                            <i class="bi bi-exclamation-circle me-1"></i>
+                            아이디 또는 비밀번호가 올바르지 않습니다.
+                        </div>
+
+                        <div th:if="${param.logout}" class="alert alert-info small">
+                            <i class="bi bi-check-circle me-1"></i>
+                            로그아웃 되었습니다.
+                        </div>
+
+                        <form th:action="@{/auth/login}" method="post">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">아이디</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
+                                    <input type="text" name="username" class="form-control"
+                                           placeholder="아이디를 입력하세요" required autofocus>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">비밀번호</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+                                    <input type="password" name="password" class="form-control"
+                                           placeholder="비밀번호를 입력하세요" required>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>로그인
+                            </button>
+                        </form>
+
+                        <!-- 데모 계정 안내 -->
+                        <div class="mt-3 p-3 bg-light rounded small text-muted">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>데모 계정:</strong> demo / demo1234
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center mt-3">
+                    <span class="text-muted">계정이 없으신가요?</span>
+                    <a th:href="@{/auth/register}" class="text-primary fw-semibold ms-1">회원가입</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+================================================================
+FILE: src/main/resources/templates/auth/register.html
+================================================================
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>회원가입 - 일정 관리 시스템</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div class="min-vh-100 d-flex align-items-center justify-content-center py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+
+                <!-- 로고 -->
+                <div class="text-center mb-4">
+                    <i class="bi bi-calendar-check text-primary" style="font-size: 3rem;"></i>
+                    <h3 class="fw-bold mt-2 text-primary">회원가입</h3>
+                    <p class="text-muted">새 계정을 만드세요</p>
+                </div>
+
+                <div class="card border-0 shadow">
+                    <div class="card-body p-4">
+
+                        <form th:action="@{/auth/register}" th:object="${userDto}" method="post" novalidate>
+
+                            <!-- 전체 에러 -->
+                            <div th:if="${#fields.hasGlobalErrors()}" class="alert alert-danger small mb-3">
+                                <span th:errors="*{global}"></span>
+                            </div>
+
+                            <!-- 아이디 -->
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">아이디 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
+                                    <input type="text" th:field="*{username}"
+                                           th:class="'form-control' + (${#fields.hasErrors('username')} ? ' is-invalid' : '')"
+                                           placeholder="4~20자 영문/숫자">
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('username')}"
+                                         th:errors="*{username}"></div>
+                                </div>
+                            </div>
+
+                            <!-- 이메일 -->
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">이메일 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-envelope"></i></span>
+                                    <input type="email" th:field="*{email}"
+                                           th:class="'form-control' + (${#fields.hasErrors('email')} ? ' is-invalid' : '')"
+                                           placeholder="이메일 주소">
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('email')}"
+                                         th:errors="*{email}"></div>
+                                </div>
+                            </div>
+
+                            <!-- 비밀번호 -->
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">비밀번호 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+                                    <input type="password" th:field="*{password}"
+                                           th:class="'form-control' + (${#fields.hasErrors('password')} ? ' is-invalid' : '')"
+                                           placeholder="6자 이상">
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('password')}"
+                                         th:errors="*{password}"></div>
+                                </div>
+                            </div>
+
+                            <!-- 비밀번호 확인 -->
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">비밀번호 확인 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-lock-fill"></i></span>
+                                    <input type="password" th:field="*{passwordConfirm}"
+                                           th:class="'form-control' + (${#fields.hasErrors('passwordConfirm')} ? ' is-invalid' : '')"
+                                           placeholder="비밀번호 재입력">
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('passwordConfirm')}"
+                                         th:errors="*{passwordConfirm}"></div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+                                <i class="bi bi-person-plus me-2"></i>회원가입
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="text-center mt-3">
+                    <span class="text-muted">이미 계정이 있으신가요?</span>
+                    <a th:href="@{/auth/login}" class="text-primary fw-semibold ms-1">로그인</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+================================================================
+FILE: src/main/resources/templates/fragments/header.html
+================================================================
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+
+<nav th:fragment="navbar" class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" th:href="@{/}">
+            <i class="bi bi-calendar-check me-2"></i>일정 관리 시스템
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/}" th:classappend="${requestURI == '/'} ? 'active'">
+                        <i class="bi bi-house me-1"></i>대시보드
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/schedules}" th:classappend="${#strings.startsWith(requestURI, '/schedules')} ? 'active'">
+                        <i class="bi bi-list-task me-1"></i>일정 목록
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/schedules/new}">
+                        <i class="bi bi-plus-circle me-1"></i>일정 등록
+                    </a>
+                </li>
+            </ul>
+
+            <ul class="navbar-nav">
+                <!-- 알림 아이콘 -->
+                <li class="nav-item me-2">
+                    <a class="nav-link position-relative" th:href="@{/notifications}">
+                        <i class="bi bi-bell fs-5"></i>
+                        <span th:if="${unreadCount != null and unreadCount > 0}"
+                              class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                              th:text="${unreadCount}">0</span>
+                    </a>
+                </li>
+
+                <!-- 사용자 메뉴 -->
+                <li class="nav-item dropdown" sec:authorize="isAuthenticated()">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>
+                        <sec:authentication property="name"/>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <form th:action="@{/auth/logout}" method="post">
+                                <button type="submit" class="dropdown-item text-danger">
+                                    <i class="bi bi-box-arrow-right me-2"></i>로그아웃
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- 공통 알림 메시지 -->
+<div th:fragment="alerts" class="container mt-3">
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-2"></i>
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle me-2"></i>
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+
+</body>
+</html>
+
+
+================================================================
+FILE: src/main/resources/templates/index.html
+================================================================
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대시보드 - 일정 관리 시스템</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div th:replace="~{fragments/header :: navbar}"></div>
+
+<div class="container mt-4">
+    <div th:replace="~{fragments/header :: alerts}"></div>
+
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">안녕하세요, <span th:text="${username}" class="text-primary"></span>님!</h2>
+            <p class="text-muted mb-0">오늘의 일정을 확인하세요.</p>
+        </div>
+        <a th:href="@{/schedules/new}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>새 일정 등록
+        </a>
+    </div>
+
+    <!-- 통계 카드 -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-hourglass-split text-warning fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">대기중</div>
+                        <div class="fs-3 fw-bold" th:text="${pendingCount}">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-arrow-repeat text-primary fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">진행중</div>
+                        <div class="fs-3 fw-bold" th:text="${inProgressCount}">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-check-circle text-success fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">완료</div>
+                        <div class="fs-3 fw-bold" th:text="${completedCount}">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-bell text-danger fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">읽지 않은 알림</div>
+                        <div class="fs-3 fw-bold" th:text="${unreadCount}">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- 마감 임박 일정 -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-alarm text-warning me-2"></i>마감 임박 (3일 이내)
+                        <span class="badge bg-warning text-dark ms-2" th:text="${upcomingSchedules.size()}">0</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(upcomingSchedules)}" class="text-center text-muted py-4">
+                        <i class="bi bi-check-all fs-3 d-block mb-2"></i>
+                        마감 임박 일정이 없습니다.
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li th:each="s : ${upcomingSchedules}"
+                            class="list-group-item list-group-item-action px-4 py-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <a th:href="@{/schedules/{id}(id=${s.id})}"
+                                       class="fw-semibold text-decoration-none text-dark"
+                                       th:text="${s.title}">제목</a>
+                                    <div class="small text-muted mt-1">
+                                        <i class="bi bi-calendar3 me-1"></i>
+                                        <span th:text="${#temporals.format(s.dueDate, 'yyyy년 MM월 dd일')}"></span>
+                                    </div>
+                                </div>
+                                <span th:class="'badge ms-2 priority-' + ${s.priority.name().toLowerCase()}"
+                                      th:text="${s.priority.label}"></span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 마감 초과 일정 -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-exclamation-triangle text-danger me-2"></i>마감 초과
+                        <span class="badge bg-danger ms-2" th:text="${overdueSchedules.size()}">0</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(overdueSchedules)}" class="text-center text-muted py-4">
+                        <i class="bi bi-check-all fs-3 d-block mb-2"></i>
+                        마감 초과 일정이 없습니다.
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li th:each="s : ${overdueSchedules}"
+                            class="list-group-item list-group-item-action px-4 py-3 list-group-item-danger">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <a th:href="@{/schedules/{id}(id=${s.id})}"
+                                       class="fw-semibold text-decoration-none text-dark"
+                                       th:text="${s.title}">제목</a>
+                                    <div class="small text-danger mt-1">
+                                        <i class="bi bi-calendar-x me-1"></i>
+                                        <span th:text="${#temporals.format(s.dueDate, 'yyyy년 MM월 dd일')}"></span> 초과
+                                    </div>
+                                </div>
+                                <a th:href="@{/schedules/{id}/edit(id=${s.id})}"
+                                   class="btn btn-sm btn-outline-danger">수정</a>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 최근 알림 -->
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between">
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-bell text-primary me-2"></i>최근 알림
+                    </h5>
+                    <a th:href="@{/notifications}" class="btn btn-sm btn-outline-primary">전체 보기</a>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(unreadNotifications)}" class="text-center text-muted py-4">
+                        <i class="bi bi-bell-slash fs-3 d-block mb-2"></i>
+                        새로운 알림이 없습니다.
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li th:each="n, stat : ${unreadNotifications}" th:if="${stat.index < 5}"
+                            class="list-group-item px-4 py-3">
+                            <div class="d-flex align-items-start">
+                                <i th:class="'bi me-3 mt-1 fs-5 ' + (${n.type.name() == 'OVERDUE'} ? 'bi-exclamation-circle text-danger' : 'bi-alarm text-warning')"></i>
+                                <div class="flex-grow-1">
+                                    <div th:text="${n.message}" class="mb-1"></div>
+                                    <small class="text-muted" th:text="${#temporals.format(n.notifiedAt, 'MM월 dd일 HH:mm')}"></small>
+                                </div>
+                                <form th:action="@{/notifications/{id}/read(id=${n.id})}" method="post" class="ms-2">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">확인</button>
+                                </form>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+================================================================
+FILE: src/main/resources/templates/notification/list.html
+================================================================
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>알림 - 일정 관리 시스템</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div th:replace="~{fragments/header :: navbar}"></div>
+
+<div class="container mt-4">
+    <div th:replace="~{fragments/header :: alerts}"></div>
+
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold mb-0">
+            <i class="bi bi-bell me-2"></i>알림
+            <span th:if="${unreadCount > 0}" class="badge bg-danger ms-2 fs-6"
+                  th:text="${unreadCount}"></span>
+        </h2>
+        <form th:if="${!#lists.isEmpty(notifications)}"
+              th:action="@{/notifications/read-all}" method="post">
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-check-all me-1"></i>모두 읽음 처리
+            </button>
+        </form>
+    </div>
+
+    <!-- 알림 목록 -->
+    <div th:if="${#lists.isEmpty(notifications)}" class="text-center py-5">
+        <i class="bi bi-bell-slash text-muted" style="font-size: 4rem;"></i>
+        <p class="text-muted mt-3 fs-5">알림이 없습니다.</p>
+    </div>
+
+    <div class="card border-0 shadow-sm" th:if="${!#lists.isEmpty(notifications)}">
+        <ul class="list-group list-group-flush">
+            <li th:each="n : ${notifications}"
+                th:class="'list-group-item px-4 py-3 ' + (${!n.read} ? 'bg-primary bg-opacity-5' : '')">
+                <div class="d-flex align-items-start">
+
+                    <!-- 아이콘 -->
+                    <div class="me-3 mt-1">
+                        <i th:if="${n.type.name() == 'OVERDUE'}"
+                           class="bi bi-exclamation-circle fs-5 text-danger"></i>
+                        <i th:if="${n.type.name() == 'DUE_SOON'}"
+                           class="bi bi-alarm fs-5 text-warning"></i>
+                        <i th:if="${n.type.name() == 'REMINDER'}"
+                           class="bi bi-bell fs-5 text-primary"></i>
+                    </div>
+
+                    <!-- 내용 -->
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-1">
+                            <span th:class="'badge me-2 ' + (${n.type.name() == 'OVERDUE'} ? 'bg-danger' : (${n.type.name() == 'DUE_SOON'} ? 'bg-warning text-dark' : 'bg-primary'))"
+                                  th:text="${n.type.label}"></span>
+                            <span th:if="${!n.read}" class="badge bg-primary">새 알림</span>
+                        </div>
+                        <div class="fw-semibold" th:text="${n.message}"></div>
+                        <div class="text-muted small mt-1">
+                            <i class="bi bi-clock me-1"></i>
+                            <span th:text="${#temporals.format(n.notifiedAt, 'yyyy. MM. dd HH:mm')}"></span>
+                        </div>
+                        <!-- 관련 일정 링크 -->
+                        <a th:if="${n.schedule != null}"
+                           th:href="@{/schedules/{id}(id=${n.schedule.id})}"
+                           class="small text-primary mt-1 d-inline-block">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>일정 보기
+                        </a>
+                    </div>
+
+                    <!-- 읽음 처리 버튼 -->
+                    <form th:if="${!n.read}"
+                          th:action="@{/notifications/{id}/read(id=${n.id})}" method="post" class="ms-3">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="읽음 처리">
+                            <i class="bi bi-check2"></i>
+                        </button>
+                    </form>
+                    <span th:if="${n.read}" class="ms-3 text-muted small">
+                        <i class="bi bi-check2-all"></i>
+                    </span>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+================================================================
+FILE: src/main/resources/templates/schedule/detail.html
+================================================================
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${schedule.title} + ' - 일정 관리 시스템'">일정 상세</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div th:replace="~{fragments/header :: navbar}"></div>
+
+<div class="container mt-4">
+    <div th:replace="~{fragments/header :: alerts}"></div>
+
+    <!-- 뒤로가기 -->
+    <div class="mb-4">
+        <a th:href="@{/schedules}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>목록으로
+        </a>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-4 px-4">
+                    <!-- 배지 -->
+                    <div class="d-flex gap-2 mb-3">
+                        <span th:class="'badge fs-6 status-' + ${schedule.status.name().toLowerCase()}"
+                              th:text="${schedule.status.label}"></span>
+                        <span th:class="'badge fs-6 priority-' + ${schedule.priority.name().toLowerCase()}"
+                              th:text="${schedule.priority.label}"></span>
+                        <span th:if="${schedule.overdue}" class="badge bg-danger fs-6">
+                            <i class="bi bi-exclamation-triangle me-1"></i>마감 초과
+                        </span>
+                        <span th:if="${schedule.dueSoon and !schedule.overdue}" class="badge bg-warning text-dark fs-6">
+                            <i class="bi bi-alarm me-1"></i>마감 임박
+                        </span>
+                    </div>
+                    <!-- 제목 -->
+                    <h3 class="fw-bold mb-0" th:text="${schedule.title}">제목</h3>
+                </div>
+
+                <div class="card-body px-4 py-4">
+                    <!-- 기간 정보 -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-6" th:if="${schedule.startDate != null}">
+                            <div class="p-3 bg-light rounded">
+                                <div class="text-muted small mb-1"><i class="bi bi-calendar-plus me-1"></i>시작일</div>
+                                <div class="fw-semibold" th:text="${#temporals.format(schedule.startDate, 'yyyy년 MM월 dd일')}"></div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div th:class="'p-3 rounded ' + (${schedule.overdue} ? 'bg-danger bg-opacity-10' : 'bg-light')">
+                                <div th:class="'small mb-1 ' + (${schedule.overdue} ? 'text-danger' : 'text-muted')">
+                                    <i class="bi bi-calendar-x me-1"></i>마감일
+                                </div>
+                                <div th:class="'fw-semibold ' + (${schedule.overdue} ? 'text-danger' : '')"
+                                     th:text="${#temporals.format(schedule.dueDate, 'yyyy년 MM월 dd일')}"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 내용 -->
+                    <div th:if="${schedule.description != null and !schedule.description.isBlank()}">
+                        <h6 class="fw-bold text-muted mb-2">
+                            <i class="bi bi-file-text me-1"></i>내용
+                        </h6>
+                        <div class="p-3 bg-light rounded" style="white-space: pre-wrap;"
+                             th:text="${schedule.description}"></div>
+                    </div>
+                    <div th:if="${schedule.description == null or schedule.description.isBlank()}"
+                         class="text-muted text-center py-3">
+                        <i class="bi bi-file-earmark me-1"></i>내용이 없습니다.
+                    </div>
+
+                    <!-- 등록/수정 시간 -->
+                    <div class="mt-4 pt-3 border-top text-muted small">
+                        <i class="bi bi-clock me-1"></i>
+                        등록: <span th:text="${#temporals.format(schedule.createdAt, 'yyyy. MM. dd HH:mm')}"></span>
+                        <span th:if="${schedule.updatedAt != null}" class="ms-3">
+                            수정: <span th:text="${#temporals.format(schedule.updatedAt, 'yyyy. MM. dd HH:mm')}"></span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 버튼 -->
+                <div class="card-footer bg-white py-3 px-4">
+                    <div class="d-flex gap-2">
+                        <a th:href="@{/schedules/{id}/edit(id=${schedule.id})}"
+                           class="btn btn-primary flex-grow-1">
+                            <i class="bi bi-pencil-square me-1"></i>수정
+                        </a>
+                        <button type="button" class="btn btn-outline-danger px-4"
+                                data-bs-toggle="modal" data-bs-target="#deleteModal">
+                            <i class="bi bi-trash me-1"></i>삭제
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>일정 삭제
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">다음 일정을 삭제하시겠습니까?</p>
+                <p class="fw-bold" th:text="'「' + ${schedule.title} + '」'"></p>
+                <small class="text-muted">삭제된 일정은 복구할 수 없습니다.</small>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <form th:action="@{/schedules/{id}/delete(id=${schedule.id})}" method="post">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>삭제 확인
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+================================================================
+FILE: src/main/resources/templates/schedule/form.html
+================================================================
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${isEdit} ? '일정 수정' : '일정 등록'" >일정 - 일정 관리 시스템</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div th:replace="~{fragments/header :: navbar}"></div>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            <!-- 페이지 헤더 -->
+            <div class="d-flex align-items-center mb-4">
+                <a th:href="@{/schedules}" class="btn btn-outline-secondary btn-sm me-3">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <h2 class="fw-bold mb-0" th:text="${isEdit} ? '일정 수정' : '새 일정 등록'"></h2>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <form th:action="${isEdit} ? @{/schedules/{id}/edit(id=${scheduleId})} : @{/schedules/new}"
+                          th:object="${scheduleDto}" method="post" novalidate>
+
+                        <!-- 제목 -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                제목 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" th:field="*{title}"
+                                   th:class="'form-control' + (${#fields.hasErrors('title')} ? ' is-invalid' : '')"
+                                   placeholder="일정 제목을 입력하세요">
+                            <div class="invalid-feedback" th:if="${#fields.hasErrors('title')}"
+                                 th:errors="*{title}"></div>
+                        </div>
+
+                        <!-- 내용 -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">내용</label>
+                            <textarea th:field="*{description}"
+                                      th:class="'form-control' + (${#fields.hasErrors('description')} ? ' is-invalid' : '')"
+                                      rows="4" placeholder="일정에 대한 세부 내용을 입력하세요"></textarea>
+                            <div class="invalid-feedback" th:if="${#fields.hasErrors('description')}"
+                                 th:errors="*{description}"></div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- 시작일 -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">시작일</label>
+                                <input type="date" th:field="*{startDate}" class="form-control">
+                            </div>
+
+                            <!-- 마감일 -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">
+                                    마감일 <span class="text-danger">*</span>
+                                </label>
+                                <input type="date" th:field="*{dueDate}"
+                                       th:class="'form-control' + (${#fields.hasErrors('dueDate')} ? ' is-invalid' : '')">
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('dueDate')}"
+                                     th:errors="*{dueDate}"></div>
+                            </div>
+
+                            <!-- 우선순위 -->
+                            <div th:class="${isEdit} ? 'col-md-6' : 'col-12'">
+                                <label class="form-label fw-semibold">우선순위 <span class="text-danger">*</span></label>
+                                <select th:field="*{priority}" class="form-select">
+                                    <option th:each="p : ${priorities}"
+                                            th:value="${p.name()}"
+                                            th:text="${p.label}"></option>
+                                </select>
+                            </div>
+
+                            <!-- 상태 (수정 시에만 표시) -->
+                            <div class="col-md-6" th:if="${isEdit}">
+                                <label class="form-label fw-semibold">상태</label>
+                                <select th:field="*{status}" class="form-select">
+                                    <option th:each="s : ${statuses}"
+                                            th:value="${s.name()}"
+                                            th:text="${s.label}"></option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 버튼 -->
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary flex-grow-1 py-2 fw-semibold">
+                                <i th:class="'bi me-2 ' + (${isEdit} ? 'bi-pencil-square' : 'bi-plus-circle')"></i>
+                                <span th:text="${isEdit} ? '수정하기' : '등록하기'"></span>
+                            </button>
+                            <a th:href="@{/schedules}" class="btn btn-outline-secondary px-4">취소</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+================================================================
+FILE: src/main/resources/templates/schedule/list.html
+================================================================
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>일정 목록 - 일정 관리 시스템</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div th:replace="~{fragments/header :: navbar}"></div>
+
+<div class="container mt-4">
+    <div th:replace="~{fragments/header :: alerts}"></div>
+
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold mb-0"><i class="bi bi-list-task me-2"></i>일정 목록</h2>
+        <a th:href="@{/schedules/new}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>새 일정
+        </a>
+    </div>
+
+    <!-- 검색 & 필터 -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-3">
+            <div class="row g-2 align-items-end">
+                <!-- 검색 -->
+                <div class="col-md-6">
+                    <form th:action="@{/schedules}" method="get" class="d-flex gap-2">
+                        <input type="text" name="keyword" class="form-control"
+                               placeholder="제목으로 검색..."
+                               th:value="${keyword}">
+                        <button type="submit" class="btn btn-outline-primary px-3">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </form>
+                </div>
+                <!-- 상태 필터 -->
+                <div class="col-md-6">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a th:href="@{/schedules}"
+                           th:class="'btn btn-sm ' + (${selectedStatus == null and keyword == null} ? 'btn-primary' : 'btn-outline-secondary')">
+                            전체
+                        </a>
+                        <a th:each="s : ${statuses}"
+                           th:href="@{/schedules(status=${s.name()})}"
+                           th:class="'btn btn-sm ' + (${selectedStatus == s.name()} ? 'btn-primary' : 'btn-outline-secondary')"
+                           th:text="${s.label}"></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 일정 목록 -->
+    <div th:if="${#lists.isEmpty(schedules)}" class="text-center py-5">
+        <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
+        <p class="text-muted mt-3 fs-5">등록된 일정이 없습니다.</p>
+        <a th:href="@{/schedules/new}" class="btn btn-primary mt-2">
+            <i class="bi bi-plus-lg me-1"></i>첫 일정 등록하기
+        </a>
+    </div>
+
+    <div class="row g-3" th:if="${!#lists.isEmpty(schedules)}">
+        <div class="col-md-6 col-lg-4" th:each="s : ${schedules}">
+            <div th:class="'card border-0 shadow-sm h-100 schedule-card ' + (${s.overdue} ? 'border-danger border-start border-4' : (${s.dueSoon} ? 'border-warning border-start border-4' : 'border-start border-4 border-transparent'))">
+                <div class="card-body">
+                    <!-- 상태 + 우선순위 -->
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span th:class="'badge status-' + ${s.status.name().toLowerCase()}"
+                              th:text="${s.status.label}"></span>
+                        <span th:class="'badge priority-' + ${s.priority.name().toLowerCase()}"
+                              th:text="${s.priority.label}"></span>
+                    </div>
+
+                    <!-- 제목 -->
+                    <h6 class="fw-bold mb-2">
+                        <a th:href="@{/schedules/{id}(id=${s.id})}"
+                           class="text-decoration-none text-dark stretched-link"
+                           th:text="${s.title}">제목</a>
+                    </h6>
+
+                    <!-- 설명 미리보기 -->
+                    <p th:if="${s.description != null and !s.description.isBlank()}"
+                       class="text-muted small mb-2 text-truncate-2"
+                       th:text="${s.description}"></p>
+
+                    <!-- 마감일 -->
+                    <div class="mt-auto pt-2 border-top">
+                        <small th:class="'d-flex align-items-center ' + (${s.overdue} ? 'text-danger fw-semibold' : 'text-muted')">
+                            <i th:class="'bi me-1 ' + (${s.overdue} ? 'bi-calendar-x' : 'bi-calendar3')"></i>
+                            마감: <span class="ms-1" th:text="${#temporals.format(s.dueDate, 'yyyy. MM. dd')}"></span>
+                            <span th:if="${s.overdue}" class="ms-1">(초과)</span>
+                            <span th:if="${s.dueSoon and !s.overdue}" class="ms-1 text-warning fw-semibold">(임박!)</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 총 개수 -->
+    <div th:if="${!#lists.isEmpty(schedules)}" class="text-center text-muted mt-4 small">
+        총 <strong th:text="${#lists.size(schedules)}"></strong>개의 일정
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+================================================================
+FILE: src/test/java/com/schedule/manager/ScheduleManagerApplicationTests.java
+================================================================
+package com.schedule.manager;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class ScheduleManagerApplicationTests {
+
+    @Test
+    void contextLoads() {
+    }
+}
+
+
+================================================================
+FILE: build.gradle
+================================================================
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.schedule'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = '17'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Web
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // JPA
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // Thymeleaf
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+
+    // Validation
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // H2 (개발용 인메모리 DB)
+    runtimeOnly 'com.h2database:h2'
+
+    // MySQL (운영용)
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

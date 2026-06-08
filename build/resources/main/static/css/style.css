@@ -1,0 +1,93 @@
+/* ========== 전역 스타일 ========== */
+body {
+    font-family: 'Segoe UI', 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    padding-bottom: 40px;
+}
+
+/* ========== 우선순위 배지 ========== */
+.priority-low    { background-color: #6c757d; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.priority-medium { background-color: #0d6efd; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.priority-high   { background-color: #fd7e14; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.priority-urgent { background-color: #dc3545; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+
+/* ========== 상태 배지 ========== */
+.status-pending     { background-color: #ffc107; color: #212529; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.status-in_progress { background-color: #0d6efd; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.status-completed   { background-color: #198754; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+.status-cancelled   { background-color: #6c757d; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+
+/* ========== 카드 ========== */
+.card {
+    border-radius: 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.schedule-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1) !important;
+}
+
+.border-transparent {
+    border-color: transparent !important;
+}
+
+/* ========== 텍스트 줄임 (2줄) ========== */
+.text-truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ========== 네비게이션 ========== */
+.navbar .nav-link {
+    border-radius: 6px;
+    padding: 6px 12px;
+    transition: background-color 0.15s;
+}
+
+.navbar .nav-link:hover,
+.navbar .nav-link.active {
+    background-color: rgba(255,255,255,0.15);
+}
+
+/* ========== 알림 배지 ========== */
+.navbar .badge {
+    font-size: 0.6rem;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ========== 폼 ========== */
+.form-control:focus,
+.form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+/* ========== 로그인/회원가입 카드 ========== */
+.card.shadow {
+    border-radius: 16px;
+}
+
+/* ========== 대시보드 통계 카드 ========== */
+.rounded-circle {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ========== 알림 목록 ========== */
+.list-group-item {
+    transition: background-color 0.15s;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>일정 목록 - 일정 관리 시스템</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="bg-light">
+
+<div th:replace="~{fragments/header :: navbar}"></div>
+
+<div class="container mt-4">
+    <div th:replace="~{fragments/header :: alerts}"></div>
+
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold mb-0"><i class="bi bi-list-task me-2"></i>일정 목록</h2>
+        <a th:href="@{/schedules/new}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>새 일정
+        </a>
+    </div>
+
+    <!-- 검색 & 필터 -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-3">
+            <div class="row g-2 align-items-end">
+                <!-- 검색 -->
+                <div class="col-md-6">
+                    <form th:action="@{/schedules}" method="get" class="d-flex gap-2">
+                        <input type="text" name="keyword" class="form-control"
+                               placeholder="제목으로 검색..."
+                               th:value="${keyword}">
+                        <button type="submit" class="btn btn-outline-primary px-3">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </form>
+                </div>
+                <!-- 상태 필터 -->
+                <div class="col-md-6">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a th:href="@{/schedules}"
+                           th:class="'btn btn-sm ' + (${selectedStatus == null and keyword == null} ? 'btn-primary' : 'btn-outline-secondary')">
+                            전체
+                        </a>
+                        <a th:each="s : ${statuses}"
+                           th:href="@{/schedules(status=${s.name()})}"
+                           th:class="'btn btn-sm ' + (${selectedStatus == s.name()} ? 'btn-primary' : 'btn-outline-secondary')"
+                           th:text="${s.label}"></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 일정 목록 -->
+    <div th:if="${#lists.isEmpty(schedules)}" class="text-center py-5">
+        <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
+        <p class="text-muted mt-3 fs-5">등록된 일정이 없습니다.</p>
+        <a th:href="@{/schedules/new}" class="btn btn-primary mt-2">
+            <i class="bi bi-plus-lg me-1"></i>첫 일정 등록하기
+        </a>
+    </div>
+
+    <div class="row g-3" th:if="${!#lists.isEmpty(schedules)}">
+        <div class="col-md-6 col-lg-4" th:each="s : ${schedules}">
+            <div th:class="'card border-0 shadow-sm h-100 schedule-card ' + (${s.overdue} ? 'border-danger border-start border-4' : (${s.dueSoon} ? 'border-warning border-start border-4' : 'border-start border-4 border-transparent'))">
+                <div class="card-body">
+                    <!-- 상태 + 우선순위 -->
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span th:class="'badge status-' + ${s.status.name().toLowerCase()}"
+                              th:text="${s.status.label}"></span>
+                        <span th:class="'badge priority-' + ${s.priority.name().toLowerCase()}"
+                              th:text="${s.priority.label}"></span>
+                    </div>
+
+                    <!-- 제목 -->
+                    <h6 class="fw-bold mb-2">
+                        <a th:href="@{/schedules/{id}(id=${s.id})}"
+                           class="text-decoration-none text-dark stretched-link"
+                           th:text="${s.title}">제목</a>
+                    </h6>
+
+                    <!-- 설명 미리보기 -->
+                    <p th:if="${s.description != null and !s.description.isBlank()}"
+                       class="text-muted small mb-2 text-truncate-2"
+                       th:text="${s.description}"></p>
+
+                    <!-- 마감일 -->
+                    <div class="mt-auto pt-2 border-top">
+                        <small th:class="'d-flex align-items-center ' + (${s.overdue} ? 'text-danger fw-semibold' : 'text-muted')">
+                            <i th:class="'bi me-1 ' + (${s.overdue} ? 'bi-calendar-x' : 'bi-calendar3')"></i>
+                            마감: <span class="ms-1" th:text="${#temporals.format(s.dueDate, 'yyyy. MM. dd')}"></span>
+                            <span th:if="${s.overdue}" class="ms-1">(초과)</span>
+                            <span th:if="${s.dueSoon and !s.overdue}" class="ms-1 text-warning fw-semibold">(임박!)</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 총 개수 -->
+    <div th:if="${!#lists.isEmpty(schedules)}" class="text-center text-muted mt-4 small">
+        총 <strong th:text="${#lists.size(schedules)}"></strong>개의 일정
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
